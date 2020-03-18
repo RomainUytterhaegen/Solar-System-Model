@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Woaw</title>
+    <script src="https://threejs.org/build/three.js"></script>
+    <script src="js/OrbitControls.js"></script>
+    <style>
+        body { margin: 0; }
+        canvas { display: block; }
+    </style>
+
+
+</head>
+
+<body>
+
+<!-- Fragment Shader -->
+<script id="fragmentShader" type="x-shader/x-fragment">
+
+			uniform float time;
+
+			uniform float fogDensity;
+			uniform vec3 fogColor;
+
+			uniform sampler2D texture1;
+			uniform sampler2D texture2;
+
+			varying vec2 vUv;
+
+			void main( void ) {
+
+				vec2 position = - 1.0 + 2.0 * vUv;
+
+				vec4 noise = texture2D( texture1, vUv );
+				vec2 T1 = vUv + vec2( 1.5, - 1.5 ) * time * 0.02;
+				vec2 T2 = vUv + vec2( - 0.5, 2.0 ) * time * 0.01;
+
+				T1.x += noise.x * 2.0;
+				T1.y += noise.y * 2.0;
+				T2.x -= noise.y * 0.2;
+				T2.y += noise.z * 0.2;
+
+				float p = texture2D( texture1, T1 * 2.0 ).a;
+
+				vec4 color = texture2D( texture2, T2 * 2.0 );
+				vec4 temp = color * ( vec4( p, p, p, p ) * 2.0 ) + ( color * color - 0.1 );
+
+				if( temp.r > 1.0 ) { temp.bg += clamp( temp.r - 2.0, 0.0, 100.0 ); }
+				if( temp.g > 1.0 ) { temp.rb += temp.g - 1.0; }
+				if( temp.b > 1.0 ) { temp.rg += temp.b - 1.0; }
+
+				gl_FragColor = temp;
+
+				float depth = gl_FragCoord.z / gl_FragCoord.w;
+				const float LOG2 = 1.442695;
+				float fogFactor = exp2( - fogDensity * fogDensity * depth * depth * LOG2 );
+				fogFactor = 1.0 - clamp( fogFactor, 0.0, 1.0 );
+
+				gl_FragColor = mix( gl_FragColor, vec4( fogColor, gl_FragColor.w ), fogFactor );
+
+			}
+
+		</script>
+
+        <!-- Vextex shader-->
+        <script id="vertexShader" type="x-shader/x-vertex">
+
+			uniform vec2 uvScale;
+			varying vec2 vUv;
+
+			void main()
+			{
+
+				vUv = uvScale * uv;
+				vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );
+				gl_Position = projectionMatrix * mvPosition;
+
+			}
+
+		</script>
+
+<script>
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////            Paramètres       ////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    var worldTime = 0;
+
+    var deltaTime = 1/60;
+
+    var distanceEarthToSun = 40;
+
+    var distanceEarthToMoon = 9;
+
+    var running = true;
+
+    var basicZoom = 50;
+
+    var earthDiameter = 4;
+
+    var earthRotationSpeed = 0.5;
+
+    var moonDiameter = 1;
+
+    var moonRotationSpeed = 1
+
+    var sunDiameter = 8;
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////            Setup            ////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    var scene = new THREE.Scene();
+    var camera = new THREE.PerspectiveCamera( 75, window.innerWidth/window.innerHeight, 0.1, 1000 );
+
+    controls = new THREE.OrbitControls( camera );
+
+    var renderer = new THREE.WebGLRenderer();
+    renderer.shadowMap.enabled = true;
+    renderer.setSize( window.innerWidth, window.innerHeight );
+    document.body.appendChild(renderer.domElement);
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////            Terre           ////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    var geometryEarth = new THREE.SphereGeometry(earthDiameter,30,30);
+    var textureEarth = new THREE.TextureLoader().load("img/earth.jpg");
+    var normalEarth = new THREE.TextureLoader().load("img/earth-normal.jpg");
+    var specularEarth = new THREE.TextureLoader().load("img/earth-specular.jpg");
+    var materialEarth = new THREE.MeshLambertMaterial({
+        map: textureEarth,
+        specularMap: specularEarth,
+        normalMap: normalEarth,
+    });
+    var earth = new THREE.Mesh(geometryEarth, materialEarth);
+    earth.name = "earth"
+    earth.diameter = earthDiameter;
+    earth.castShadow = true;
+    earth.receiveShadow= true;
+    scene.add(earth);
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////            Lune            ////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    var geometryMoon = new THREE.SphereGeometry(moonDiameter,30,30);
+    var textureMoon = new THREE.TextureLoader().load("img/moon.png");
+    var materialMoon = new THREE.MeshLambertMaterial({map: textureMoon});
+    var moon = new THREE.Mesh(geometryMoon,materialMoon);
+    moon.name = "moon";
+    moon.diameter = moonDiameter;
+    moon.receiveShadow = true;
+    moon.castShadow = true;
+    scene.add(moon);
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////            Lumières        ////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    var moonLight = new THREE.SpotLight(0x00ff00,1,2*distanceEarthToMoon);
+    scene.add(moonLight);
+    moonLight.target = earth;
+    moonLight.name = "coucou";
+
+    var sunLight = new THREE.PointLight(0xffffff,1);
+    sunLight.name="coucou2";
+    sunLight.castShadow = true;
+    scene.add(sunLight);
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////            Soleil          ////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    /* Shader marche pas
+
+    var textureLoader = new THREE.TextureLoader();
+
+    uniforms = {
+
+        "fogDensity": { value: 0.45 },
+        "fogColor": { value: new THREE.Vector3( 0, 0, 0 ) },
+        "time": { value: 1.0 },
+        "uvScale": { value: new THREE.Vector2( 3.0, 1.0 ) },
+        "texture1": { value: textureLoader.load( 'img/sun.jpg' ) },
+        "texture2": { value: textureLoader.load( 'img/cloud.jpg' ) }
+
+    };
+
+    uniforms[ "texture1" ].value.wrapS = uniforms[ "texture1" ].value.wrapT = THREE.RepeatWrapping;
+    uniforms[ "texture2" ].value.wrapS = uniforms[ "texture2" ].value.wrapT = THREE.RepeatWrapping;
+
+    var materialSun = new THREE.ShaderMaterial( {
+
+        uniforms: uniforms,
+        vertexShader: document.getElementById( 'vertexShader' ).textContent,
+        fragmentShader: document.getElementById( 'fragmentShader' ).textContent
+
+    } );
+
+
+    var geometrySun = new THREE.SphereGeometry(sunDiameter,30,30);
+    var sun = new THREE.Mesh(geometrySun,materialSun);
+    sun.name = "sun";
+    sun.diameter = sunDiameter;
+    */
+    var geometrySun = new THREE.SphereGeometry(sunDiameter,30,30);
+    var textureSun = new THREE.TextureLoader().load("img/sun.jpg");
+    var materialSun = new THREE.MeshBasicMaterial({
+        map: textureSun,});
+    var sun = new THREE.Mesh(geometrySun,materialSun);
+    sun.name = "sun";
+    sun.diameter = sunDiameter;
+
+
+    scene.add(sun);
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////            Skybox          ////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    var geometrySkysphere = new THREE.SphereGeometry(200,30,30);
+    var textureSkysphere = new THREE.TextureLoader().load("img/skysphere.jpg");
+    var materialSkySphere  = new THREE.MeshLambertMaterial({map: textureSkysphere});
+    materialSkySphere.side = THREE.DoubleSide;
+    var skysphere = new THREE.Mesh(geometrySkysphere,materialSkySphere);
+    skysphere.name = "skysphere";
+    scene.add(skysphere);
+
+    camera.position.z = basicZoom;
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////        Mouse Tracking      ////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    var raycaster = new THREE.Raycaster();
+
+    var hoveredComponents; // Objet visé par le raycaster
+
+    var objectTracking = false;
+
+    var trackingObject; // Objet vérouillé
+
+    document.addEventListener('mousedown',event=>{
+        // Récupération coordonnées de la souris
+        var mouse  = new THREE.Vector2();
+        mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+        mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+
+        raycaster.setFromCamera(mouse,camera); //Mise à jour raytracing en fonction de la position de la souris
+
+        hoveredComponents = raycaster.intersectObjects(scene.children); // Récupération des objets dans l'intersection
+
+        if(hoveredComponents.length != 0 && hoveredComponents[0].object.name != "skysphere")
+        {
+            if(objectTracking && hoveredComponents[0].object.name == trackingObject.name) {
+                objectTracking = false;
+            }else
+            {
+                objectTracking = true;
+                trackingObject = hoveredComponents[0].object;
+            }
+        }else
+        {
+            objectTracking = false;
+        }
+
+
+
+    });
+
+    var animate = function () {
+
+        if(objectTracking)
+        {
+
+            // Je mets +3 sinon la camera reste bloqué dans le soleil (je ne sais pas pourquoi)
+            camera.position.x = trackingObject.position.x + 10;
+            camera.position.y = trackingObject.position.y + 10;
+            camera.position.z = trackingObject.position.z + 10;
+            controls.target.copy(trackingObject.position);
+
+        }
+        requestAnimationFrame( animate );
+
+        if(running)
+        {
+            worldTime+=deltaTime;
+
+            // Mouvement Terre
+            earth.rotation.y +=1 * deltaTime;
+            earth.position.x = distanceEarthToSun * Math.cos(worldTime * earthRotationSpeed) ;
+            earth.position.y = distanceEarthToSun * Math.sin(worldTime * earthRotationSpeed) ;
+
+            // Mouvement Lune
+            moon.rotation.y += 0.01 * deltaTime;
+            moon.position.x = earth.position.x + distanceEarthToMoon  * Math.cos(-1 *worldTime * moonRotationSpeed ) ;
+            moon.position.y = earth.position.y  + distanceEarthToMoon * Math.sin(-1 *worldTime * moonRotationSpeed) ;
+            moon.lookAt(earth.position);
+
+            //Mouvement MoonLight
+            moonLight.position.x = moon.position.x
+            moonLight.position.y = moon.position.y;
+
+            //Mouvement soleil
+            //sun.rotation.z +=0.01;
+
+            //Mouvement camera
+
+        }else{
+
+        }
+
+
+
+
+
+        controls.update();
+        renderer.render( scene, camera );
+    };
+
+    document.addEventListener('keydown',(event)=>
+    {
+        var input = event.key;
+        if(input == ' '){
+            running = !running;
+        }
+        if(input == 'Escape')
+        {
+            objectTracking = false;
+        }
+    });
+
+if(running){
+    animate();
+}
+
+
+</script>
+
+</body>
+</html>

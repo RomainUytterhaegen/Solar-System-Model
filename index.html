@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <title>Woaw</title>
-    <script src="https://threejs.org/build/three.js"></script>
+    <script src="js//three.js"></script>
     <script src="js/OrbitControls.js"></script>
     <style>
         body { margin: 0; }
@@ -174,7 +174,7 @@
     /////////////////////////////////////////            Soleil          ////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    /* Shader marche pas
+
 
     var textureLoader = new THREE.TextureLoader();
 
@@ -205,7 +205,9 @@
     var sun = new THREE.Mesh(geometrySun,materialSun);
     sun.name = "sun";
     sun.diameter = sunDiameter;
-    */
+
+
+    /*
     var geometrySun = new THREE.SphereGeometry(sunDiameter,30,30);
     var textureSun = new THREE.TextureLoader().load("img/sun.jpg");
     var materialSun = new THREE.MeshBasicMaterial({
@@ -213,6 +215,8 @@
     var sun = new THREE.Mesh(geometrySun,materialSun);
     sun.name = "sun";
     sun.diameter = sunDiameter;
+
+     */
 
 
     scene.add(sun);
@@ -276,7 +280,7 @@
         if(objectTracking)
         {
 
-            // Je mets +3 sinon la camera reste bloqué dans le soleil (je ne sais pas pourquoi)
+            // Tracking de l'objet en cours s'il y en a
             camera.position.x = trackingObject.position.x + 10;
             camera.position.y = trackingObject.position.y + 10;
             camera.position.z = trackingObject.position.z + 10;
@@ -304,17 +308,11 @@
             moonLight.position.x = moon.position.x
             moonLight.position.y = moon.position.y;
 
-            //Mouvement soleil
-            //sun.rotation.z +=0.01;
 
-            //Mouvement camera
 
         }else{
 
         }
-
-
-
 
 
         controls.update();
@@ -333,9 +331,8 @@
         }
     });
 
-if(running){
     animate();
-}
+
 
 
 </script>
